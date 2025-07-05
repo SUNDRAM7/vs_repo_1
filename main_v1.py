@@ -48,7 +48,7 @@ class OptionTracker:
         self.sl = sl
         #self.sl_multiplier = sl_multiplier
 
-    def add_straddle(self, call_strike, put_strike, entry_time, call_bid, put_bid,call_high, call_close, put_high, put_close):
+    def add_straddle(self, call_strike, put_strike, entry_time, call_bid, put_bid,call_high, call_close, put_high, put_close,null_counter):
         #print(8)
         if call_bid is None or put_bid is None or pd.isna(call_bid) or pd.isna(put_bid):
             return
@@ -70,6 +70,7 @@ class OptionTracker:
             "exit_ask": None,
             "high": call_high,
             "close": call_close,
+            "Null": null_counter
         }
 
         put_pos = {
@@ -86,6 +87,7 @@ class OptionTracker:
             "exit_ask": None,
             "high": put_high,
             "close": put_close,
+            "Null": null_counter
         }
         
 
@@ -134,6 +136,7 @@ class OptionTracker:
                 if call_pos:
                     #print(call_pos['sl'],call_high, call_pos['symbol'],ask)
                     if bid is not None and ask is not None and call_high >= pos["sl"]:
+                        
                         self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",call_high)
                         if other_pos["status"] == "OPEN":
                             other_pos["target"] = FIXED_TARGET
@@ -389,10 +392,13 @@ def process_file(csv_file_path,tp,sl):
         call_close = get_cached_price(call_symbol, time_now, price_cache, "close")
         put_high =get_cached_price(put_symbol, time_now, price_cache, "high")
         put_close = get_cached_price(put_symbol, time_now, price_cache, "close")
+
+        if not call_high or not call_close or not put_high or not put_close:
+            null_counter=True
         #print(call_high,put_close)
 
         if (call_bid and call_bid > FIXED_TARGET) and (put_bid and put_bid > FIXED_TARGET):
-            tracker.add_straddle(call_strike, put_strike, time_now, call_bid, put_bid, call_high, call_close, put_high, put_close)
+            tracker.add_straddle(call_strike, put_strike, time_now, call_bid, put_bid, call_high, call_close, put_high, put_close,null_counter)
 
         tracker.update_positions(time_now, price_cache)
 
