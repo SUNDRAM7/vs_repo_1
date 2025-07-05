@@ -454,7 +454,7 @@ def run_batch(tp,sl):
             print(f"⚠️ No trades found for {file}")
     bound_func = partial(process_and_save, tp=tp, sl=sl)
 
-    with ThreadPoolExecutor(max_workers=24) as executor:
+    with ThreadPoolExecutor(max_workers=12) as executor: #on safer side keep it to 12 otherwise it will give error in pool size
         executor.map(bound_func, files)
 
 if __name__ == "__main__":
