@@ -12,8 +12,8 @@ import openpyxl
 from functools import partial
 
 # === CONFIGURATION === #
-CSV_FOLDER = r"C:\Users\Axxela\Desktop\atm strategy final\spx_tzconverted_220704to 250701"
-OUTPUT_FOLDER = r"C:\Users\Axxela\Desktop\test"
+CSV_FOLDER = r"C:\Users\Axxela\Desktop\test 1"
+OUTPUT_FOLDER = r"C:\Users\Axxela\Desktop\test 1"
 FIXED_TARGET = 0.05
 DB_NAME = "sa_exp_bbo_spx"
 DB_USER = "root"
@@ -96,7 +96,7 @@ class OptionTracker:
         #print(self.pairs)
 
     def update_positions(self, current_time, bid_cache):
-        global tp
+        #global tp
         #print(tp)
         #print(8.5)
         for call_pos, put_pos in self.pairs:
@@ -393,8 +393,16 @@ def process_file(csv_file_path,tp,sl):
         put_high =get_cached_price(put_symbol, time_now, price_cache, "high")
         put_close = get_cached_price(put_symbol, time_now, price_cache, "close")
 
-        if not call_high or not call_close or not put_high or not put_close:
+        null_counter= False
+        #print(type(call_high))
+        #if math.isnan(call_high):
+        
+          #  print(  call_high,True )
+
+        if math.isnan(call_high) or  math.isnan(call_close) or  math.isnan(put_high) or  math.isnan(put_close):
+            
             null_counter=True
+            
         #print(call_high,put_close)
 
         if (call_bid and call_bid > FIXED_TARGET) and (put_bid and put_bid > FIXED_TARGET):
