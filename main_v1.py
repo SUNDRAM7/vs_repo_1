@@ -168,9 +168,18 @@ class OptionTracker:
     def force_close_open_positions(self, final_time, bid_cache):
         for pos in self.positions:
             if pos["status"] == "OPEN":
-                ask = get_cached_price(pos["symbol"], final_time, bid_cache, "ask")
-                if ask is not None:
-                    self._close(pos, final_time, ask, "FORCED CLOSE - SESSION END")
+                if pos['option_type']=='C':
+                    call_high= get_cached_price(pos["symbol"], final_time, bid_cache, "high")
+                    ask = get_cached_price(pos["symbol"], final_time, bid_cache, "ask")
+                    if ask is not None:
+                        self._close(pos, final_time, ask, "FORCED CLOSE - SESSION END",call_high)
+                else:
+                    put_high =get_cached_price(pos["symbol"], final_time, bid_cache, "high")
+                    ask = get_cached_price(pos["symbol"], final_time, bid_cache, "ask")
+                    if ask is not None:
+                        self._close(pos, final_time, ask, "FORCED CLOSE - SESSION END",put_high)
+
+
 
     def get_results_df(self):
         return pd.DataFrame(self.positions)
