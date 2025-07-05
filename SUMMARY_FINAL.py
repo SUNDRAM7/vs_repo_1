@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import re
 
 # === CONFIGURATION ===
-CSV_FOLDER = r"C:\Users\Axxela\Desktop\sl55"
-OUTPUT_CSV = r"C:\Users\Axxela\Desktop\summary_3year\summary_atm_sl55tp50.xlsx"
+CSV_FOLDER = r"C:\Users\Axxela\Desktop\test\tp50\sl50"
+OUTPUT_CSV = r"C:\Users\Axxela\Desktop\test\tp50\summary_atm_sl50tp50_1.xlsx"
 
 summary_data = []
 
@@ -21,7 +21,7 @@ for file in os.listdir(CSV_FOLDER):
 
         filepath = os.path.join(CSV_FOLDER, file)
         df = pd.read_excel(filepath)
-        print(file)
+        #print(df)
         s_value=(df['straddle_value'].sum()/len(df))
         day_start_close_value = (df['13:30_close_value'].sum()/len(df))
         straddle_cb=(df['c_bid'].sum()/len(df))
@@ -29,7 +29,8 @@ for file in os.listdir(CSV_FOLDER):
         straddle_pb=(df['p_bid'].sum()/len(df))
         straddle_pa=(df['p_ask'].sum()/len(df))
         
-        toal_trade_at_sl=(df[])
+        
+        #toal_trade_at_sl=(df[])
         # Parse datetime safely
         df['entry_time'] = pd.to_datetime(df['entry_time'], dayfirst=True, errors='coerce')
         df['exit_time'] = pd.to_datetime(df['exit_time'], dayfirst=True, errors='coerce')
@@ -38,12 +39,19 @@ for file in os.listdir(CSV_FOLDER):
         # Calculate PnL
         df['pnl'] = df['entry_bid'] - df['exit_bid']
 
+        tot_pos=(df['pnl']>0).sum()
+        toal_trade_at_sl=((df['sl']) == (df['exit_bid'])).sum()
+        toal_trade_above_sl=((df['sl']) < df['exit_bid']).sum()
+        null_count=df['high'].isnull().sum()
+
         # Basic Stats
         total_pnl = df['pnl'].sum()
         total_trades = len(df)
         total_stoploss_hit = (df['exit_reason'] == 'STOP LOSS HIT').sum()
         total_target_hit = (df['exit_reason'] == 'TARGET HIT').sum()
         total_forced_close = (df['exit_reason'] == 'FORCED CLOSE - SESSION END').sum()
+        null_count=df['high'].isnull().sum()
+        null_index=df[df['high'].isna()].index.tolist()
 
         df['entry_minute'] = df['entry_time'].dt.strftime('%H:%M')
         minute_pnl_group = df.groupby('entry_minute')['pnl'].sum()
@@ -82,6 +90,11 @@ for file in os.listdir(CSV_FOLDER):
             'straddle_ca':straddle_ca,
             'straddle_pb':straddle_pb,
             'straddle_pa':straddle_pa,
+            'toal_trade_at_sl':toal_trade_at_sl,
+            'positive':tot_pos,
+            'toal_trade_above_sl':toal_trade_above_sl,
+            'null_count_open':null_count,
+            'null_index_of_open_in_ohlc':null_index
         }
 
         summary_row.update(interval_pnls)
@@ -90,7 +103,7 @@ for file in os.listdir(CSV_FOLDER):
 # Final summary dataframe
 summary_df = pd.DataFrame(summary_data)
 summary_df.sort_values(by='date', inplace=True)
-summary_df.to_csv(OUTPUT_CSV, index=False)
+
 summary_df.to_excel(OUTPUT_CSV, index=False)
 
 print(f"✅ Summary with all 30-min PnLs saved to: {OUTPUT_CSV}")
