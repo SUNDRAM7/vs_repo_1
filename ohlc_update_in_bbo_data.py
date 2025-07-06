@@ -9,7 +9,7 @@ DB_CONFIG = {
 }
 BATCH_SIZE = 1000
 DB_SOURCE = 'ohlc_opt_data'
-DB_TARGET = 'sa_exp_bbo_spx'
+DB_TARGET = 'sd_exp_bbo_spx'
 
 
 def connect():

@@ -4,12 +4,12 @@ import mysql.connector
 from multiprocessing import Pool
 
 # === Configuration ===
-CSV_FOLDER = r"C:\Users\Axxela\Desktop\New folder (2)"  # <-- Change this if needed
+CSV_FOLDER = r"C:\Users\Axxela\Desktop\ohlc_new_data"  # <-- Change this if needed
 MYSQL_CONFIG = {
     'host': 'localhost',
     'user': 'root',
     'password': 'Axxela@123',
-    'database': 'ohlc_opt_data'
+    'database': 'ohlc_opt_data_updated'
 }
 
 # === New OHLC Schema ===
@@ -93,7 +93,7 @@ def main():
         return
 
     # Use multiprocessing to import each CSV
-    with Pool(processes=min(4, len(csv_files))) as pool:
+    with Pool(processes=min(1, len(csv_files))) as pool:
         pool.map(import_csv_file, csv_files)
 
 

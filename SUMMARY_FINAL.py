@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import re
 
 # === CONFIGURATION ===
-CSV_FOLDER = r"C:\Users\Axxela\Desktop\test\tp50\sl50"
-OUTPUT_CSV = r"C:\Users\Axxela\Desktop\test\tp50\summary_atm_sl50tp50_1.xlsx"
+CSV_FOLDER = r"C:\Users\Axxela\Desktop\final_trades_with_updates\tp50\sl50"
+OUTPUT_CSV = r"C:\Users\Axxela\Desktop\final_trades_with_updates\summary_atm_sl50tp50_1.xlsx"
 
 summary_data = []
 
