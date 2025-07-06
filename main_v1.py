@@ -12,14 +12,16 @@ import openpyxl
 from functools import partial
 
 # === CONFIGURATION === #
-CSV_FOLDER = r"C:\Users\Axxela\Desktop\test 1"
-OUTPUT_FOLDER = r"C:\Users\Axxela\Desktop\test 1"
+CSV_FOLDER = r"spx_daily"
+OUTPUT_FOLDER = r"C:\Users\Axxela\Desktop\atm strategy final\trades_on_network"
 FIXED_TARGET = 0.05
+HOST= '192.168.102.245'
+    
 DB_NAME = "sa_exp_bbo_spx"
-DB_USER = "root"
-DB_PASSWORD_RAW = "Axxela@123"
+DB_USER = "option_backtest"
+DB_PASSWORD_RAW = "Axxela"
 DB_PASSWORD = urllib.parse.quote(DB_PASSWORD_RAW)
-DB_CONN_STRING = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@localhost:3306/{DB_NAME}"
+DB_CONN_STRING = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{HOST}:3306/{DB_NAME}"
 
 
 
@@ -462,7 +464,7 @@ def run_batch(tp,sl):
             print(f"⚠️ No trades found for {file}")
     bound_func = partial(process_and_save, tp=tp, sl=sl)
 
-    with ThreadPoolExecutor(max_workers=12) as executor: #on safer side keep it to 12 otherwise it will give error in pool size
+    with ThreadPoolExecutor(max_workers=1) as executor: #on safer side keep it to 12 otherwise it will give error in pool size
         executor.map(bound_func, files)
 
 if __name__ == "__main__":

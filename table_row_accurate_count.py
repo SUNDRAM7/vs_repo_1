@@ -5,9 +5,9 @@ from tqdm import tqdm  # Optional, for progress bar
 
 # === CONFIGURATION ===
 DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'Axxela@123',
+    'host': '192.168.102.245',
+    'user': 'option_backtest',
+    'password': 'Axxela',
     'database': 'sa_exp_bbo_spx',
     'port': 3306  # PostgreSQL default is 5432
 }
