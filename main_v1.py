@@ -12,9 +12,19 @@ import openpyxl
 from functools import partial
 
 # === CONFIGURATION === #
-CSV_FOLDER = r"spx_daily"
-OUTPUT_FOLDER = r"C:\Users\Axxela\Desktop\atm strategy final\trades_on_network"
+CSV_FOLDER = r"C:\Users\Axxela\Desktop\atm strategy final\spx_daily_220422-250627"
+OUTPUT_FOLDER = r"C:\Users\Axxela\Desktop\atm strategy final\network\trades"
 FIXED_TARGET = 0.05
+
+    
+'''
+HOST= 'localhost'
+DB_NAME = "sa_exp_bbo_spx"
+DB_USER = "root"
+DB_PASSWORD_RAW = "Axxela@123"
+DB_PASSWORD = urllib.parse.quote(DB_PASSWORD_RAW)
+DB_CONN_STRING = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{HOST}:3306/{DB_NAME}"
+'''
 HOST= '192.168.102.245'
     
 DB_NAME = "sa_exp_bbo_spx"
@@ -22,6 +32,8 @@ DB_USER = "option_backtest"
 DB_PASSWORD_RAW = "Axxela"
 DB_PASSWORD = urllib.parse.quote(DB_PASSWORD_RAW)
 DB_CONN_STRING = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{HOST}:3306/{DB_NAME}"
+
+
 
 
 
@@ -136,19 +148,35 @@ class OptionTracker:
                 #print(pos['high'],put_high,call_high)
 
                 if call_pos:
+                    if not math.isnan(call_high):
                     #print(call_pos['sl'],call_high, call_pos['symbol'],ask)
-                    if bid is not None and ask is not None and call_high >= pos["sl"]:
+                        if bid is not None and ask is not None and call_high >= pos["sl"]:
                         
-                        self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",call_high)
-                        if other_pos["status"] == "OPEN":
-                            other_pos["target"] = FIXED_TARGET
-                        continue
+                            self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",call_high)
+                            if other_pos["status"] == "OPEN":
+                                other_pos["target"] = FIXED_TARGET
+                            continue
+                    else:
+                        if bid is not None and ask is not None and call_ask >= pos["sl"]:
+                        
+                            self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",call_ask)
+                            if other_pos["status"] == "OPEN":
+                                other_pos["target"] = FIXED_TARGET
+                            continue    
                 else:
-                    if bid is not None and ask is not None and put_high >= pos["sl"]:
-                        self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",put_high)
-                        if other_pos["status"] == "OPEN":
-                            other_pos["target"] = FIXED_TARGET
-                        continue
+                    if not math.isnan(put_high):
+
+                        if bid is not None and ask is not None and put_high >= pos["sl"]:
+                            self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",put_high)
+                            if other_pos["status"] == "OPEN":
+                                other_pos["target"] = FIXED_TARGET
+                            continue
+                    else:
+                        if bid is not None and ask is not None and put_ask >= pos["sl"]:
+                            self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",put_ask)
+                            if other_pos["status"] == "OPEN":
+                                other_pos["target"] = FIXED_TARGET
+                            continue
 
                 
 
@@ -176,13 +204,17 @@ class OptionTracker:
                 if pos['option_type']=='C':
                     call_high= get_cached_price(pos["symbol"], final_time, bid_cache, "high")
                     ask = get_cached_price(pos["symbol"], final_time, bid_cache, "ask")
-                    if ask is not None:
-                        self._close(pos, final_time, ask, "FORCED CLOSE - SESSION END",call_high)
+                    if call_high is not None:
+                        self._close(pos, final_time, call_high, "FORCED CLOSE - SESSION END",call_high)
+                    else:
+                        self._close(pos, final_time, ask, "FORCED CLOSE - SESSION END",ask)
                 else:
                     put_high =get_cached_price(pos["symbol"], final_time, bid_cache, "high")
                     ask = get_cached_price(pos["symbol"], final_time, bid_cache, "ask")
-                    if ask is not None:
-                        self._close(pos, final_time, ask, "FORCED CLOSE - SESSION END",put_high)
+                    if put_high is not None:
+                        self._close(pos, final_time, put_high, "FORCED CLOSE - SESSION END",put_high)
+                    else:
+                        self._close(pos, final_time, ask, "FORCED CLOSE - SESSION END",ask)
 
 
 
@@ -429,7 +461,7 @@ def run_batch(tp,sl):
 
 
     def process_and_save(file,tp,sl):
-        print(tp,sl)
+        #print(tp,sl)
         #print(3)
         csv_path = os.path.join(CSV_FOLDER, file)
         print(f"🔁 Processing {file}...")
