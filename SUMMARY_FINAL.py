@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import re
 
 # === CONFIGURATION ===
-CSV_FOLDER = r"trades_on_network/tp50/sl50"
-OUTPUT_CSV = r"C:\Users\Axxela\Desktop\final_trades_with_updates\summary_atm_sl50tp50_1.xlsx"
+CSV_FOLDER = r"C:\Users\Axxela\Desktop\atm strategy final\network\trades_test\tp50\sl50"
+OUTPUT_CSV = r"network/trades_test/tp50/sl50\summary_atm_sl50tp50_v2.xlsx"
 
 summary_data = []
 
@@ -55,11 +55,13 @@ for file in os.listdir(CSV_FOLDER):
 
         df['entry_minute'] = df['entry_time'].dt.strftime('%H:%M')
         minute_pnl_group = df.groupby('entry_minute')['pnl'].sum()
+        minute_premium_group = df.groupby('entry_minute')['entry_bid'].sum()
         optimal_minute = minute_pnl_group.idxmax() if not minute_pnl_group.empty else ''
         optimal_minute_pnl = minute_pnl_group.max() if not minute_pnl_group.empty else 0.0
 
         # Cumulative 30-min intervals (from first to last entry)
         interval_pnls = {}
+        interval_premium = {}
         min_time = df['entry_time'].min()
         max_time = df['entry_time'].max()
 
@@ -71,6 +73,9 @@ for file in os.listdir(CSV_FOLDER):
             label = f"min_{interval_index}"
             interval_df = df[(df['entry_time'] >= start_dt) & (df['entry_time'] < end_dt)]
             interval_pnls[label] = round(interval_df['pnl'].sum(), 2)
+            label = f"min_{interval_index}_premium"
+
+            interval_premium[label] = round(interval_df['entry_bid'].sum(), 2)
             start_dt = end_dt
             interval_index += 1
 
@@ -98,6 +103,7 @@ for file in os.listdir(CSV_FOLDER):
         }
 
         summary_row.update(interval_pnls)
+        summary_row.update(interval_premium)
         summary_data.append(summary_row)
 
 # Final summary dataframe

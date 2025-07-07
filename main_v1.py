@@ -55,21 +55,23 @@ engine = create_engine(DB_CONN_STRING)
 
 class OptionTracker:
     
-    def __init__(self,tp,sl):
+    def __init__(self,tp,sl,atm_spread):
         self.positions = []
         self.pairs = []
         self.tp = tp
         self.sl = sl
+        self.atm_spread=atm_spread
         #self.sl_multiplier = sl_multiplier
 
-    def add_straddle(self, call_strike, put_strike, entry_time, call_bid, put_bid,call_high, call_close, put_high, put_close,null_counter):
+    def add_straddle(self, call_strike, put_strike, entry_time, call_bid,call_ask, put_bid,put_ask,call_high, call_close, put_high, put_close,null_counter,call_bid_sv,call_ask_sv,put_bid_sv, put_ask_sv,straddle_value, straddle_strike):
         #print(8)
+        
         if call_bid is None or put_bid is None or pd.isna(call_bid) or pd.isna(put_bid):
             return
 
         call_sl = self.sl*(float(min(call_bid * 2, call_bid + put_bid)))#stoploss ke ticks ka 50%
         put_sl =  self.sl*(float(min(put_bid * 2, call_bid + put_bid)))
-
+        straddle_value = 0.5*((call_bid_sv+call_ask_sv)*0.5 + (put_bid_sv+ put_ask_sv)*0.5)
         call_pos = {
             "option_type": "C",
             "strike": call_strike,
@@ -81,10 +83,17 @@ class OptionTracker:
             "status": "OPEN",
             "exit_time": None,
             "exit_reason": None,
-            "exit_ask": None,
+           # "exit_ask": None,
+            "straddle_strike": straddle_strike,
+            "straddle_value":straddle_value,
+            "call_bid_sv":call_bid_sv,
+            "call_ask_sv":call_ask_sv,
+            "put_bid_sv":put_bid_sv,
+            "put_ask_sv":put_ask_sv,
             "high": call_high,
             "close": call_close,
-            "Null": null_counter
+            "Null": null_counter,
+            "slippage": call_ask-call_bid
         }
 
         put_pos = {
@@ -98,10 +107,17 @@ class OptionTracker:
             "status": "OPEN",
             "exit_time": None,
             "exit_reason": None,
-            "exit_ask": None,
+            #"exit_ask": None,
+            "straddle_strike": straddle_strike,
+            "straddle_value":straddle_value,
+            "call_bid_sv":call_bid_sv,
+            "call_ask_sv":call_ask_sv,
+            "put_bid_sv":put_bid_sv,
+            "put_ask_sv":put_ask_sv,
             "high": put_high,
             "close": put_close,
-            "Null": null_counter
+            "Null": null_counter,
+            "slippage": put_ask-put_bid
         }
         
 
@@ -149,6 +165,7 @@ class OptionTracker:
 
                 if call_pos:
                     if not math.isnan(call_high):
+                        #print("call_high")
                     #print(call_pos['sl'],call_high, call_pos['symbol'],ask)
                         if bid is not None and ask is not None and call_high >= pos["sl"]:
                         
@@ -157,9 +174,11 @@ class OptionTracker:
                                 other_pos["target"] = FIXED_TARGET
                             continue
                     else:
-                        if bid is not None and ask is not None and call_ask >= pos["sl"]:
+                        continue 
+                        #print("call_high is not available")
+                        if bid is not None and ask is not None and bid >= pos["sl"]:
                         
-                            self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",call_ask)
+                            self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",ask)
                             if other_pos["status"] == "OPEN":
                                 other_pos["target"] = FIXED_TARGET
                             continue    
@@ -172,8 +191,9 @@ class OptionTracker:
                                 other_pos["target"] = FIXED_TARGET
                             continue
                     else:
-                        if bid is not None and ask is not None and put_ask >= pos["sl"]:
-                            self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",put_ask)
+                        continue 
+                        if bid is not None and ask is not None and bid >= pos["sl"]:
+                            self._close(pos, current_time, pos["sl"], "STOP LOSS HIT",ask)
                             if other_pos["status"] == "OPEN":
                                 other_pos["target"] = FIXED_TARGET
                             continue
@@ -194,11 +214,12 @@ class OptionTracker:
     def _close(self, pos, exit_time, exit_price, reason,high=1):
         pos["status"] = "CLOSED"
         pos["exit_time"] = exit_time
-        pos["exit_bid"] = exit_price
+        pos["exit_ask"] = exit_price
         pos["exit_reason"] = reason
         pos["exit_high"] = high
 
     def force_close_open_positions(self, final_time, bid_cache):
+
         for pos in self.positions:
             if pos["status"] == "OPEN":
                 if pos['option_type']=='C':
@@ -223,6 +244,7 @@ class OptionTracker:
 
 
 def generate_symbol(option_type, strike, dt):
+    #print(4.5)
     expiry_str = dt.strftime("%y%m%d")
     try:
         strike_str = f"{int(float(strike) * 1000):08d}"
@@ -257,7 +279,7 @@ def preload_price_data(date_str, symbols):#working
 
 def build_price_cache(price_df):
     cache = defaultdict(lambda: defaultdict(dict))
-    #print(7)
+    #print(6.5)
     for _, row in price_df.iterrows():
         symbol = row['symbol']
         ts = row['ts_recv'].replace(microsecond=0)
@@ -293,12 +315,13 @@ def get_cached_price(symbol, time_obj, cache, price_type="bid"):
     return cache.get(symbol, {}).get(time_key, {}).get(price_type)
 
 
-def process_file(csv_file_path,tp,sl):
+def process_file(csv_file_path,tp,sl,atm_spread):
+    #print(atm_spread)
     #print(tp,sl)
 
     #tracker = OptionTracker(sl_multiplier=sl_multiplier)
     global straddle_value, s_call, s_put,s_close_price,c_b,c_a,p_a ,p_b
-    #print(3)
+    #print(3.5)
     filename = os.path.basename(csv_file_path)
     fallback_date = extract_date_from_filename(filename)
     #print(fallback_date)
@@ -316,7 +339,8 @@ def process_file(csv_file_path,tp,sl):
         print(f"⚠️ No valid date column in {filename}")
         return pd.DataFrame()
 
-    tracker = OptionTracker(tp, sl)
+    tracker = OptionTracker(tp, sl,atm_spread)
+
     #print("class initialised")
 
     if fallback_date:
@@ -325,7 +349,7 @@ def process_file(csv_file_path,tp,sl):
         print(f"❌ Could not determine date for {filename}")
         return pd.DataFrame()
     #print((df['close'][0]))
-    straddle_date_str = fallback_date.strftime("%y%m%d")
+    '''straddle_date_str = fallback_date.strftime("%y%m%d")
     #straddle_price(df['close'][0])
     s_close_price= df['close'][0]
     straddle_strike = round(s_close_price / 5)*5
@@ -342,7 +366,7 @@ def process_file(csv_file_path,tp,sl):
     p_a = p_ab_p['ask_px_00'][0]
     s_call=(c_b + c_a)/2
     s_put=(p_b + p_a)/2
-    straddle_value= s_put+ s_call
+    straddle_value= s_put+ s_call'''
     #print(s_call,s_put,straddle_value)
 
 
@@ -358,33 +382,33 @@ def process_file(csv_file_path,tp,sl):
     #print(df['prev_close'])
     df = df.dropna(subset=['prev_close']).copy()
     #print(df)
+    #print(atm_spread)
 
     # Calculate ATM strikes
-    df['Call_Price'] = df['prev_close'].apply(lambda x: math.ceil(x / 5) * 5)
-    df['Put_Price'] = df['prev_close'].apply(lambda x: math.floor(x / 5) * 5)
-    df['Call_Price_5']= df['Call_Price']+ 5
-    df['Put_Price_5']= df['Put_Price'] - 5
-    df['Call_Price_10']= df['Call_Price'] + 10
-    df['Put_Price_10']= df['Put_Price'] - 10
-    df['Call_Price_15']= df['Call_Price'] + 15
-    df['Put_Price_15']= df['Put_Price'] - 15
+    df['Call_Price'] = df['prev_close'].apply(lambda x: math.ceil(x / 5) * 5)+ atm_spread*5
+    df['Put_Price'] = df['prev_close'].apply(lambda x: math.floor(x / 5) * 5)- atm_spread*5
+    #print(df['Call_Price'])
+    df['straddle_value'] = df['prev_close'].apply(lambda x: round(x / 5) * 5)
+    #df['straddle_value_p'] = df['prev_close'].apply(lambda x: round(x / 5) * 5)
+    #print(df['straddle_value_c'])
     #print(df)
     #print(df['Call_Price'])
     #print(df)
     for _, row in df.iterrows():
         if pd.isna(row['Call_Price']) or pd.isna(row['Put_Price']) or pd.isna(row['date']):
             continue
+        #print(all_symbols)
         all_symbols.add(generate_symbol("C", row['Call_Price'], row['date']))
         all_symbols.add(generate_symbol("P", row['Put_Price'], row['date']))
-        all_symbols.add(generate_symbol("C", row['Call_Price_5'], row['date']))
-        all_symbols.add(generate_symbol("P", row['Put_Price_5'], row['date']))
-        all_symbols.add(generate_symbol("C", row['Call_Price_10'], row['date']))
-        all_symbols.add(generate_symbol("P", row['Put_Price_10'], row['date']))
-        all_symbols.add(generate_symbol("C", row['Call_Price_15'], row['date']))
+        all_symbols.add(generate_symbol("P", row['straddle_value'], row['date']))
+        all_symbols.add(generate_symbol("C", row['straddle_value'], row['date']))
 
-        all_symbols.add(generate_symbol("P", row['Put_Price_15'], row['date']))
+       
+        
+        #print(all_symbols)
 
     date_str = sample_date.strftime("%y%m%d")
+    #print(date_str)
     print(f"📅 Using table: sa_exp_{date_str} for {filename}")
     #print(5)
     price_df = preload_price_data(date_str, all_symbols)
@@ -395,21 +419,17 @@ def process_file(csv_file_path,tp,sl):
         return pd.DataFrame()
 
     price_cache = build_price_cache(price_df)
+    #print(7)
 
 
     for _, row in df.iterrows():
         time_now = row['date']
         call_strike = row['Call_Price']
         put_strike = row['Put_Price']
-        call_strike_5 = row['Call_Price_5']
-        put_strike_5 = row['Put_Price_5']
-        call_strike_10 = row['Call_Price_10']
-        put_strike_10 = row['Put_Price_10']
-        call_strike_15 = row['Call_Price_15']
-        put_strike_15 = row['Put_Price_15'] 
-        
-
-
+        #straddle_call_strike = row['straddle_value_c']
+        #straddle_put_strike = row['straddle_value_p']
+        straddle_strike = row['straddle_value']
+        #print(df)
 
 
         if pd.isna(call_strike) or pd.isna(put_strike) or pd.isna(time_now):
@@ -417,9 +437,20 @@ def process_file(csv_file_path,tp,sl):
 
         call_symbol = generate_symbol("C", call_strike, time_now)
         put_symbol = generate_symbol("P", put_strike, time_now)
+        straddle_call_symbol = generate_symbol("C", straddle_strike, time_now)
+        straddle_put_symbol = generate_symbol("P",straddle_strike, time_now)
+        #print(straddle_call_symbol)
 
         call_bid = get_cached_price(call_symbol, time_now, price_cache, "bid")
         put_bid = get_cached_price(put_symbol, time_now, price_cache, "bid")
+        call_ask = get_cached_price(call_symbol, time_now, price_cache, "ask")
+        put_ask= get_cached_price(put_symbol, time_now, price_cache, "ask")
+        
+        call_bid_sv=get_cached_price(straddle_call_symbol, time_now, price_cache, "bid")
+        call_ask_sv= get_cached_price(straddle_call_symbol, time_now, price_cache, "ask")
+        put_bid_sv=get_cached_price(straddle_put_symbol, time_now, price_cache, "bid")
+        put_ask_sv=get_cached_price(straddle_put_symbol, time_now, price_cache, "ask")
+
 
         call_high= get_cached_price(call_symbol, time_now, price_cache, "high")
         
@@ -440,18 +471,20 @@ def process_file(csv_file_path,tp,sl):
         #print(call_high,put_close)
 
         if (call_bid and call_bid > FIXED_TARGET) and (put_bid and put_bid > FIXED_TARGET):
-            tracker.add_straddle(call_strike, put_strike, time_now, call_bid, put_bid, call_high, call_close, put_high, put_close,null_counter)
+            tracker.add_straddle(call_strike, put_strike, time_now, call_bid, call_ask, put_bid,put_ask, call_high, call_close, put_high, put_close,null_counter,call_bid_sv,call_ask_sv,put_bid_sv, put_ask_sv,straddle_value, straddle_strike)
+        #print(9)
 
         tracker.update_positions(time_now, price_cache)
 
     final_time = df['date'].max()
-    #(9)
+    #
+    #print(9.5)
     tracker.force_close_open_positions(final_time, price_cache)
 
     return tracker.get_results_df()
 
     
-def run_batch(tp,sl):
+def run_batch(tp,sl,atm_spread):
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
     #print(1)
     #print(tp,sl)
@@ -460,33 +493,31 @@ def run_batch(tp,sl):
     #print(2)
 
 
-    def process_and_save(file,tp,sl):
-        #print(tp,sl)
+    def process_and_save(file,tp,sl,atm_spread):
+        #print(tp,sl,atm_spread)
         #print(3)
         csv_path = os.path.join(CSV_FOLDER, file)
         print(f"🔁 Processing {file}...")
-        result_df = process_file(csv_path,tp,sl)
+        result_df = process_file(csv_path,tp,sl,atm_spread)
         #print(result_df)
-        result_df['straddle_value']=straddle_value
-        result_df['13:30_close_value']=s_close_price
-        result_df['c_bid']=c_b
-        result_df['c_ask']=c_a
-        result_df['p_bid']=p_b
-        result_df['p_ask']=p_a
+        
 
         sl_str = f"{int((sl-0.25) * 100):02d}"
         tp_str = f"{int(tp * 100):02d}"
         sl_str = f"{int((sl - 0.25) * 100):02d}"
         tp_str = f"{int(tp * 100):02d}"
+        atm_spread_str= f"{int(atm_spread):02d}"
+       #print(4)
         
         # Create nested folder path: tpXX/slYY
         tp_folder_name = f"tp{tp_str}"
         sl_folder_name = f"sl{sl_str}"
-        nested_folder_path = os.path.join(OUTPUT_FOLDER, tp_folder_name, sl_folder_name)
+        atm_spread_folder_name= f"atm_spread{atm_spread_str}"
+        nested_folder_path = os.path.join(OUTPUT_FOLDER, tp_folder_name, sl_folder_name, atm_spread_folder_name)
         os.makedirs(nested_folder_path, exist_ok=True)
 
 # Final filename and path
-        output_filename = file.replace(".xlsx", f"_sl{sl_str}_tp{tp_str}_trades.xlsx")
+        output_filename = file.replace(".xlsx", f"ATM{atm_spread_str}_sl{sl_str}_tp{tp_str}_trades.xlsx")
         output_path = os.path.join(nested_folder_path, output_filename)
 
         if not result_df.empty:
@@ -494,19 +525,22 @@ def run_batch(tp,sl):
             print(f"✅ Saved: {output_path}")
         else:
             print(f"⚠️ No trades found for {file}")
-    bound_func = partial(process_and_save, tp=tp, sl=sl)
+    bound_func = partial(process_and_save, tp=tp, sl=sl, atm_spread=atm_spread)
 
-    with ThreadPoolExecutor(max_workers=1) as executor: #on safer side keep it to 12 otherwise it will give error in pool size
+    with ThreadPoolExecutor(max_workers=16) as executor: #on safer side keep it to 12 otherwise it will give error in pool size
         executor.map(bound_func, files)
 
 if __name__ == "__main__":
-    for i in range (1):
-        for j in range (1):
-            tp=0.5+(i/10)
-    
+    for k in range (2):
+        for i in range (5):
+            for j in range (6):
+                tp=0.5+(i/10)
 
-            sl=0.75+(j/20)
+
+                sl=0.75+(j/20)
+                atm_spread=k
+                #print(atm_spread,tp,sl)
 
             #print(tp,sl)
-            run_batch(tp,sl)
+                run_batch(tp,sl,atm_spread)
     
